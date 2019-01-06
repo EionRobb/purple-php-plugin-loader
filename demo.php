@@ -4,8 +4,11 @@ function init_plugin()
 {
 
 }
-function plugin_load()
+function plugin_load($plugin = null)
 {
+	purple_debug(PURPLE_DEBUG_INFO, "demo-php", "Hello from PHP land!\n");
+	purple_notify_message($plugin, PURPLE_NOTIFY_MSG_INFO, "Hello!", "Hello from PHP land!", "This is a call from PHP to ph7 to C to libpurple!", null, null);
+	
 	return true;
 }
 function plugin_unload()

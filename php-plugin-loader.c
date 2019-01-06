@@ -86,7 +86,79 @@ plugin_unload(PurplePlugin *plugin)
 	return TRUE;
 }
 
-int php__INIT_PLUGIN__call(ph7_context *pCtx, int argc, ph7_value **argv)
+static void
+php_set_int_constant(ph7_value *pVal,void *pUserData)
+{
+	int intval = GPOINTER_TO_INT(pUserData);
+	ph7_value_int(pVal, intval);
+}
+
+static void
+php_set_string_constant(ph7_value *pVal,void *pUserData)
+{
+	const gchar *strval = pUserData;
+	ph7_value_string(pVal, strval, -1);
+}
+
+static int
+php__purple_notify_message__call(ph7_context *pCtx, int argc, ph7_value **argv)
+{
+	PurplePlugin *plugin = ph7_context_user_data(pCtx);
+	int message_type;
+	const gchar *title;
+	const gchar *primary;
+	const gchar *secondary;
+	ph7_value *callback_func;
+	ph7_value *callback_data;
+	gpointer handle;
+
+	if (argc < 3) {
+		ph7_context_throw_error(pCtx, PH7_CTX_WARNING, "Unexpected number of arguments");
+		return PH7_ABORT;
+	}
+	
+	handle       = plugin; //TODO
+	message_type = ph7_value_to_int(argv[1]);
+	title        = ph7_value_to_string(argv[2], NULL);
+	primary      = ph7_value_to_string(argv[3], NULL);
+	secondary    = ph7_value_to_string(argv[4], NULL);
+
+	//TODO handle callback
+	callback_func = argv[5];
+	callback_data = argv[6];
+	(void) callback_func;
+	(void) callback_data;
+	
+	gpointer ui_handle = purple_notify_message(handle, message_type, title, primary, secondary, NULL, NULL);
+	
+	ph7_result_int(pCtx, GPOINTER_TO_INT(ui_handle));
+	
+	return PH7_OK;
+}
+
+static int
+php__purple_debug__call(ph7_context *pCtx, int argc, ph7_value **argv)
+{
+	int debug_level;
+	const gchar *category;
+	const gchar *format;
+
+	if (argc < 3) {
+		ph7_context_throw_error(pCtx, PH7_CTX_WARNING, "Unexpected number of arguments");
+		return PH7_ABORT;
+	}
+	
+	debug_level = ph7_value_to_int(argv[0]);
+	category    = ph7_value_to_string(argv[1], NULL);
+	format      = ph7_value_to_string(argv[2], NULL);
+
+	purple_debug(debug_level, category, format); //TODO this needs va_args, process format ourselves and deliver as a %s
+	
+	return PH7_OK;
+}
+
+static int
+php__INIT_PLUGIN__call(ph7_context *pCtx, int argc, ph7_value **argv)
 {
 	PurplePlugin *plugin = ph7_context_user_data(pCtx);
 	PurplePhpScript *pps;
@@ -148,6 +220,24 @@ probe_php_plugin(PurplePlugin *plugin)
 	plugin->handle = pVm;
 	// TODO Add functions to the vm here
 	ph7_create_function(pVm, "PURPLE_INIT_PLUGIN", php__INIT_PLUGIN__call, plugin);
+	ph7_create_constant(pVm, "PURPLE_PRIORITY_DEFAULT", php_set_int_constant, GINT_TO_POINTER(PURPLE_PRIORITY_DEFAULT));
+	
+	// debug.h
+	ph7_create_constant(pVm, "PURPLE_DEBUG_ALL", php_set_int_constant, GINT_TO_POINTER(PURPLE_DEBUG_ALL));
+	ph7_create_constant(pVm, "PURPLE_DEBUG_MISC", php_set_int_constant, GINT_TO_POINTER(PURPLE_DEBUG_MISC));
+	ph7_create_constant(pVm, "PURPLE_DEBUG_INFO", php_set_int_constant, GINT_TO_POINTER(PURPLE_DEBUG_INFO));
+	ph7_create_constant(pVm, "PURPLE_DEBUG_WARNING", php_set_int_constant, GINT_TO_POINTER(PURPLE_DEBUG_WARNING));
+	ph7_create_constant(pVm, "PURPLE_DEBUG_ERROR", php_set_int_constant, GINT_TO_POINTER(PURPLE_DEBUG_ERROR));
+	ph7_create_constant(pVm, "PURPLE_DEBUG_FATAL", php_set_int_constant, GINT_TO_POINTER(PURPLE_DEBUG_FATAL));
+	ph7_create_function(pVm, "purple_debug", php__purple_debug__call, plugin);
+	
+	// notify.h
+	ph7_create_constant(pVm, "PURPLE_NOTIFY_MSG_ERROR", php_set_int_constant, GINT_TO_POINTER(PURPLE_NOTIFY_MSG_ERROR));
+	ph7_create_constant(pVm, "PURPLE_NOTIFY_MSG_WARNING", php_set_int_constant, GINT_TO_POINTER(PURPLE_NOTIFY_MSG_WARNING));
+	ph7_create_constant(pVm, "PURPLE_NOTIFY_MSG_INFO", php_set_int_constant, GINT_TO_POINTER(PURPLE_NOTIFY_MSG_INFO));
+	ph7_create_function(pVm, "purple_notify_message", php__purple_notify_message__call, plugin);
+	
+	ph7_create_constant(pVm, "EionRobb", php_set_string_constant, "EionRobb");
 	
 	ph7_vm_exec(pVm, NULL);
 	
